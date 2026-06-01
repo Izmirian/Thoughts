@@ -1,0 +1,79 @@
+/**
+ * HTTP server: ingest endpoint (shared-secret), graph API + static viewer
+ * (token-gated, since it's personal data), and a health probe.
+ */
+import express from 'express';
+import crypto from 'crypto';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { CONFIG } from './config.js';
+import { ingestIdea } from './ingest.js';
+import { getGraph } from './db.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PUBLIC_DIR = join(__dirname, '..', 'public');
+
+/** Constant-time string compare; false if either side is empty. */
+function safeEqual(a, b) {
+  if (!a || !b) return false;
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+function viewerToken(req) {
+  return req.query.token || req.headers['x-viewer-token'] || req.cookies?.viewer_token;
+}
+
+export function createServer() {
+  const app = express();
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: CONFIG.MAX_INGEST_BODY }));
+
+  // --- Health ---
+  app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+
+  // --- Ingest (reminder-bot -> here). Shared-secret, NOT the viewer token. ---
+  app.post('/api/ingest', async (req, res) => {
+    const secret = req.headers['x-ingest-secret'];
+    if (!safeEqual(secret, process.env.THOUGHTS_INGEST_SECRET)) {
+      return res.status(403).json({ ok: false, error: 'forbidden' });
+    }
+    try {
+      const result = await ingestIdea(req.body || {});
+      res.status(result.ok ? 200 : 400).json(result);
+    } catch (e) {
+      console.error('[Ingest] error:', e.message);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // --- Token gate for the viewer + graph data ---
+  const gate = (req, res, next) => {
+    if (!process.env.VIEWER_TOKEN) return next(); // unset = open (local dev)
+    if (safeEqual(viewerToken(req), process.env.VIEWER_TOKEN)) return next();
+    res.status(403).send('Forbidden — append ?token=YOUR_VIEWER_TOKEN to the URL.');
+  };
+
+  app.get('/api/graph', gate, async (req, res) => {
+    try {
+      const data = await getGraph({
+        chatId: req.query.chat || null,
+        limit: req.query.limit ? parseInt(req.query.limit) : CONFIG.GRAPH_DEFAULT_LIMIT,
+        minWeight: req.query.minWeight ? parseFloat(req.query.minWeight) : 0,
+        since: req.query.since || null,
+      });
+      res.json(data);
+    } catch (e) {
+      console.error('[Graph] error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Static assets (JS/CSS contain no data) are public; index is gated.
+  app.get('/', gate, (req, res) => res.sendFile(join(PUBLIC_DIR, 'index.html')));
+  app.use(express.static(PUBLIC_DIR, { index: false }));
+
+  return app;
+}

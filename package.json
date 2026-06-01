@@ -1,0 +1,28 @@
+{
+  "name": "thoughts",
+  "version": "1.0.0",
+  "description": "WhatsApp idea graph — capture ideas, auto-connect them by meaning, visualize hot spots",
+  "type": "module",
+  "main": "start.js",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "start": "node start.js",
+    "dev": "node --watch start.js",
+    "seed": "node scripts/seed.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0",
+    "graphology": "^0.25.4",
+    "graphology-communities-louvain": "^2.0.1",
+    "node-cron": "^3.0.0",
+    "pg": "^8.20.0"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.0.0"
+  }
+}
