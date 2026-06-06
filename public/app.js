@@ -69,6 +69,17 @@ function render(data) {
   document.getElementById('stats').textContent =
     `${data.nodes.length} ideas · ${data.edges.length} links · ${data.clusters.length} clusters`;
 
+  // Hot spots are computed in the background (debounced after captures, plus a
+  // 6h cron). If links exist but clusters/heat haven't landed yet, nudge a refresh.
+  const notice = document.getElementById('notice');
+  const heatReady = data.nodes.some(n => n.heat > 0);
+  if (data.nodes.length > 1 && data.edges.length > 0 && (data.clusters.length === 0 || !heatReady)) {
+    notice.textContent = 'Hot spots are still computing — click ↻ Recompute to generate them now.';
+    notice.classList.remove('hidden');
+  } else {
+    notice.classList.add('hidden');
+  }
+
   buildLegend(data.clusters);
 
   const renderer = new Sigma(graph, document.getElementById('graph'), {
@@ -127,4 +138,23 @@ function setupSearch(graph, renderer) {
   });
 }
 
+function setupRecompute() {
+  const btn = document.getElementById('recompute');
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Recomputing…';
+    try {
+      const res = await fetch(`/api/recompute?token=${encodeURIComponent(token)}`, { method: 'POST' });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      location.reload();
+    } catch (e) {
+      btn.textContent = 'Failed — retry';
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = original; }, 2500);
+    }
+  });
+}
+
+setupRecompute();
 load();

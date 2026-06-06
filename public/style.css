@@ -19,6 +19,20 @@ body { background: #0b0e14; color: #e6e6e6; overflow: hidden; }
 }
 #search:focus { outline: none; border-color: #4c8bf5; }
 
+#recompute {
+  width: 100%; padding: 8px 10px; margin-bottom: 12px; cursor: pointer;
+  background: #16203a; border: 1px solid #2a3346; border-radius: 8px;
+  color: #cdd4e0; font-size: 12px;
+}
+#recompute:hover { background: #1d2a4a; border-color: #4c8bf5; }
+#recompute:disabled { opacity: 0.6; cursor: default; }
+
+#notice {
+  font-size: 11px; color: #f2c14e; background: rgba(242,193,78,0.08);
+  border: 1px solid rgba(242,193,78,0.25); border-radius: 8px;
+  padding: 8px 10px; margin-bottom: 12px; line-height: 1.5;
+}
+
 #legend { display: flex; flex-direction: column; gap: 6px; }
 .legend-item {
   display: flex; align-items: center; gap: 8px; font-size: 12px;

@@ -56,6 +56,24 @@ export function createServer() {
     res.status(403).send('Forbidden — append ?token=YOUR_VIEWER_TOKEN to the URL.');
   };
 
+  // On-demand recompute of clusters + heat (token-gated). The viewer's refresh
+  // button hits this so hot spots can be regenerated immediately. Pass ?label=1
+  // to also (re)label clusters via Claude (slower, makes extra API calls).
+  app.post('/api/recompute', gate, async (req, res) => {
+    try {
+      const { recomputeAllClusters } = await import('./clustering.js');
+      await recomputeAllClusters();
+      if (req.query.label === '1' && process.env.ANTHROPIC_API_KEY) {
+        const { labelAllClusters } = await import('./labeler.js');
+        await labelAllClusters();
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('[Recompute] error:', e.message);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   app.get('/api/graph', gate, async (req, res) => {
     try {
       const data = await getGraph({

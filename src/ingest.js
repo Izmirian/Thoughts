@@ -10,6 +10,7 @@ import { createIdea } from './db.js';
 import { processNewIdea } from './graph.js';
 import { analyzeImage, analyzePdfBuffer } from './analyze.js';
 import { transcribeAudio } from './transcribe.js';
+import { scheduleRecompute } from './recompute.js';
 
 /** Derive the text to embed from whatever was sent. Returns { content, rawText, mediaBuffer }. */
 async function deriveContent({ text, mediaBase64, mediaMime, sourceType }) {
@@ -62,6 +63,10 @@ export async function ingestIdea(payload) {
   } catch (e) {
     console.error('[Ingest] embedding/linking failed (idea still stored):', e.message);
   }
+
+  // Refresh clusters/heat soon (debounced, off the response path) so hot spots
+  // appear without waiting for the 6-hourly cron.
+  scheduleRecompute(chatId);
 
   return { ok: true, id, created: true, linkedCount: link.linkedCount, topSimilarity: link.topSimilarity };
 }

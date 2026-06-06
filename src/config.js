@@ -24,6 +24,12 @@ export const CONFIG = {
   EDGE_PRUNE_WEIGHT: 0.15,   // edges weaker than this AND older than EDGE_PRUNE_DAYS may be pruned
   EDGE_PRUNE_DAYS: 120,
 
+  // --- Freshness: recompute clusters/heat shortly after new captures ---
+  // (debounced per chat so a burst of captures coalesces into one recompute,
+  //  with a max wait so a long burst still refreshes periodically)
+  RECOMPUTE_DEBOUNCE_MS: parseInt(process.env.RECOMPUTE_DEBOUNCE_MS || '20000'),
+  RECOMPUTE_MAX_WAIT_MS: parseInt(process.env.RECOMPUTE_MAX_WAIT_MS || '120000'),
+
   // --- Limits / timeouts ---
   FETCH_TIMEOUT: 20000,              // default outbound HTTP timeout (ms)
   EMBED_MAX_CHARS: 8000,             // truncate text before embedding
