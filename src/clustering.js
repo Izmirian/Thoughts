@@ -9,7 +9,7 @@ import louvain from 'graphology-communities-louvain';
 import { CONFIG } from './config.js';
 import {
   getChatIds, getNodesForChat, getEdgesForChat,
-  setClusterId, setIdeaHeat, upsertCluster,
+  setClusterId, setIdeaHeat, upsertCluster, deleteClustersExcept,
 } from './db.js';
 
 function ageDays(createdAt) {
@@ -112,6 +112,9 @@ export async function recomputeClustersForChat(chatId) {
       heat: members.length ? clusterHeatSum / members.length : 0,
     });
   }
+
+  // Drop cluster rows from previous runs that no longer exist.
+  await deleteClustersExcept(chatId, [...clusterMembers.keys()]);
 
   console.log(`[Cluster] ${chatId}: ${nodes.length} ideas -> ${clusterMembers.size} clusters`);
 }

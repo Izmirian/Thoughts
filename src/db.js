@@ -437,6 +437,16 @@ export async function upsertCluster(chatId, clusterKey, { label = null, summary 
   }
 }
 
+/** Remove cluster rows that no longer correspond to a live community. */
+export async function deleteClustersExcept(chatId, keepKeys) {
+  if (!keepKeys.length) {
+    await run('DELETE FROM clusters WHERE chat_id = ?', [chatId]);
+    return;
+  }
+  const placeholders = keepKeys.map(() => '?').join(',');
+  await run(`DELETE FROM clusters WHERE chat_id = ? AND cluster_key NOT IN (${placeholders})`, [chatId, ...keepKeys]);
+}
+
 export async function setClusterLabel(chatId, clusterKey, label, summary) {
   await run("UPDATE clusters SET label = ?, summary = ?, updated_at = " + (isPostgres ? 'NOW()' : "datetime('now')") + " WHERE chat_id = ? AND cluster_key = ?",
     [label, summary, chatId, clusterKey]);

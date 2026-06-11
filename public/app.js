@@ -3,15 +3,27 @@
    show up as big, brightly-colored hot spots. */
 
 const Graph = graphology.Graph || graphology;
-const forceAtlas2 = graphologyLibrary.layoutForceAtlas2;
+// `forceAtlas2` comes from vendor/forceatlas2.min.js (IIFE global)
 
 const token = new URLSearchParams(location.search).get('token') || '';
 
 function clusterColor(clusterId) {
   if (clusterId === null || clusterId === undefined) return '#5d6675';
   // Golden-angle hashing -> well-spread, stable hues per cluster.
+  // Emitted as hex because Sigma's WebGL color parser doesn't accept hsl().
   const hue = (clusterId * 137.508) % 360;
-  return `hsl(${hue}, 70%, 58%)`;
+  return hslToHex(hue, 70, 58);
+}
+
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => {
+    const c = l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    return Math.round(255 * c).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
 }
 
 function nodeSize(heat, degree) {
