@@ -105,29 +105,46 @@ function render(data) {
   setupSearch(graph, renderer);
 }
 
+// Build an element from a tag + class + plain text. Using textContent (never
+// innerHTML) for any DB-derived value is what keeps captured ideas/labels — which
+// originate from arbitrary inbound messages — from executing as HTML in the viewer.
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
 function buildLegend(clusters) {
-  const el = document.getElementById('legend');
-  el.innerHTML = '';
+  const container = document.getElementById('legend');
+  container.replaceChildren();
   const top = [...clusters].filter(c => c.size > 1).sort((a, b) => b.heat - a.heat).slice(0, 12);
   for (const c of top) {
-    const item = document.createElement('div');
-    item.className = 'legend-item';
-    item.innerHTML = `
-      <span class="legend-dot" style="background:${clusterColor(c.id)}"></span>
-      <span class="legend-label">${c.label || 'cluster ' + c.id}</span>
-      <span class="legend-heat">${c.size}·${c.heat.toFixed(2)}</span>`;
+    const item = el('div', 'legend-item');
+    const dot = el('span', 'legend-dot');
+    dot.style.background = clusterColor(c.id);
+    item.append(
+      dot,
+      el('span', 'legend-label', c.label || 'cluster ' + c.id),
+      el('span', 'legend-heat', `${c.size}·${c.heat.toFixed(2)}`),
+    );
     item.title = c.summary || '';
-    el.appendChild(item);
+    container.appendChild(item);
   }
-  if (!top.length) el.innerHTML = '<div class="hint">No clusters yet — add more ideas.</div>';
+  if (!top.length) container.appendChild(el('div', 'hint', 'No clusters yet — add more ideas.'));
 }
 
 function setupInteractions(renderer, graph) {
   const tooltip = document.getElementById('tooltip');
   renderer.on('enterNode', ({ node }) => {
     const a = graph.getNodeAttributes(node);
-    tooltip.innerHTML = `<div>${a.content || a.label}</div>
-      <div class="meta">${a.clusterName ? '🔥 ' + a.clusterName + ' · ' : ''}${a.degree} links · heat ${(a.heat || 0).toFixed(2)}${a.sourceType && a.sourceType !== 'text' ? ' · ' + a.sourceType : ''}</div>`;
+    const meta = (a.clusterName ? `🔥 ${a.clusterName} · ` : '')
+      + `${a.degree} links · heat ${(a.heat || 0).toFixed(2)}`
+      + (a.sourceType && a.sourceType !== 'text' ? ` · ${a.sourceType}` : '');
+    tooltip.replaceChildren(
+      el('div', null, a.content || a.label),   // textContent — never innerHTML
+      el('div', 'meta', meta),
+    );
     tooltip.classList.remove('hidden');
   });
   renderer.on('moveBody', () => {});
