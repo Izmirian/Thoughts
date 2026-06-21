@@ -39,9 +39,20 @@ body { background: #0b0e14; color: #e6e6e6; overflow: hidden; }
   cursor: pointer; padding: 4px 6px; border-radius: 6px;
 }
 .legend-item:hover { background: rgba(255,255,255,0.06); }
+.legend-item.active { background: rgba(76,139,245,0.18); outline: 1px solid #4c8bf5; }
 .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 .legend-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .legend-heat { font-size: 10px; color: #8a93a6; }
+
+#details {
+  margin-top: 12px; padding: 10px; border-radius: 8px;
+  background: rgba(11,14,20,0.7); border: 1px solid #2a3346;
+}
+.details-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.details-cluster { flex: 1; font-size: 12px; font-weight: 600; color: #cdd4e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.details-clear { cursor: pointer; color: #8a93a6; font-size: 12px; padding: 0 4px; }
+.details-clear:hover { color: #e6e6e6; }
+.details-body { font-size: 13px; line-height: 1.45; color: #e6e6e6; margin-bottom: 6px; }
 
 .hint { margin-top: 14px; font-size: 11px; color: #5d6675; line-height: 1.5; }
 

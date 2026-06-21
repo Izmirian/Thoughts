@@ -120,10 +120,10 @@ async function initSqlite() {
   const { fileURLToPath } = await import('url');
 
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  const dataDir = join(__dirname, '..', 'data');
-  mkdirSync(dataDir, { recursive: true });
+  const dbPath = process.env.SQLITE_PATH || join(__dirname, '..', 'data', 'thoughts.db');
+  mkdirSync(dirname(dbPath), { recursive: true });
 
-  sqliteDb = new Database(join(dataDir, 'thoughts.db'));
+  sqliteDb = new Database(dbPath);
   sqliteDb.pragma('journal_mode = WAL');
   sqliteDb.exec(`
     CREATE TABLE IF NOT EXISTS ideas (

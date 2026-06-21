@@ -7,8 +7,10 @@
  * The weight math is kept pure here so it can be unit-tested in isolation.
  */
 import { CONFIG } from './config.js';
-import { embed } from './embeddings.js';
-import { EMBEDDING_MODEL } from './embeddings.js';
+import { embed, EMBEDDING_MODEL, DEFAULT_SIM_THRESHOLD } from './embeddings.js';
+
+// Explicit SIM_THRESHOLD env wins; otherwise fall back to the provider default.
+const SIM_THRESHOLD = CONFIG.SIM_THRESHOLD ?? DEFAULT_SIM_THRESHOLD;
 import {
   storeEmbedding, nearestNeighbors, getEdge, insertEdge, updateEdge,
   bumpEdgeReinforce, recomputeDegree, pruneWeakestEdges,
@@ -49,7 +51,7 @@ export async function processNewIdea(chatId, ideaId, text) {
   await storeEmbedding(ideaId, vec, EMBEDDING_MODEL);
 
   const neighbors = await nearestNeighbors(chatId, vec, CONFIG.TOP_K, ideaId);
-  const linked = neighbors.filter(n => n.similarity >= CONFIG.SIM_THRESHOLD);
+  const linked = neighbors.filter(n => n.similarity >= SIM_THRESHOLD);
 
   // 1) Create or reinforce direct edges to each similar neighbour.
   for (const n of linked) {

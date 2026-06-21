@@ -6,7 +6,9 @@
 export const CONFIG = {
   // --- Graph / edge algorithm ---
   TOP_K: parseInt(process.env.TOP_K || '15'),              // nearest neighbours considered per new idea
-  SIM_THRESHOLD: parseFloat(process.env.SIM_THRESHOLD || '0.78'), // min cosine similarity to draw an edge
+  // Min cosine similarity to draw an edge. Null => use the provider's default
+  // (see DEFAULT_SIM_THRESHOLD in embeddings.js). An explicit env always wins.
+  SIM_THRESHOLD: process.env.SIM_THRESHOLD !== undefined ? parseFloat(process.env.SIM_THRESHOLD) : null,
   MAX_EDGES_PER_NODE: parseInt(process.env.MAX_EDGES_PER_NODE || '12'), // cap fan-out to keep graph sparse
 
   // Edge weight: weight = clamp01( sim * (1 + REINFORCE_GAIN*log1p(reinforced)) * recencyBoost )
