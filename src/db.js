@@ -549,6 +549,14 @@ export async function sampleClusterContents(chatId, clusterKey, limit) {
   )).rows.map(r => r.content);
 }
 
+/** Delete all data for a chat (ideas cascade to edges + idea_entities). Owner maintenance. */
+export async function forgetChat(chatId) {
+  const ideas = await run('DELETE FROM ideas WHERE chat_id = ?', [chatId]);
+  const entities = await run('DELETE FROM entities WHERE chat_id = ?', [chatId]);
+  const clusters = await run('DELETE FROM clusters WHERE chat_id = ?', [chatId]);
+  return { ideas: ideas.changes || 0, entities: entities.changes || 0, clusters: clusters.changes || 0 };
+}
+
 /** Prune weak + stale edges. Never removes nodes. Returns count removed. */
 export async function pruneStaleEdges() {
   const cutoff = isPostgres

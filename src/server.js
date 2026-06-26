@@ -87,6 +87,19 @@ export function createServer() {
     }
   });
 
+  // Delete all data for a chat thread (token-gated owner maintenance).
+  app.post('/api/forget', gate, async (req, res) => {
+    const chat = req.query.chat;
+    if (!chat) return res.status(400).json({ ok: false, error: 'missing ?chat=' });
+    try {
+      const { forgetChat } = await import('./db.js');
+      res.json({ ok: true, ...(await forgetChat(chat)) });
+    } catch (e) {
+      console.error('[Forget] error:', e.message);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   app.get('/api/graph', gate, async (req, res) => {
     try {
       const data = await getGraph({
