@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thoughts — Idea Graph</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="graph"></div>
+
+  <div id="panel">
+    <h1>🧠 Thoughts</h1>
+    <div id="stats">loading…</div>
+    <input id="search" type="text" placeholder="search ideas…" autocomplete="off" />
+    <button id="recompute">↻ Recompute hot spots</button>
+    <div id="notice" class="hidden"></div>
+    <div id="legend"></div>
+    <div id="details" class="hidden"></div>
+    <div class="hint">scroll to zoom · drag to pan · click a node to focus · click a cluster to filter</div>
+  </div>
+
+  <div id="tooltip" class="hidden"></div>
+
+  <!-- graphology (Graph model) + forceatlas2 layout + Sigma (WebGL renderer),
+       vendored locally: no CDN dependency, nothing leaves the server -->
+  <script src="vendor/graphology.umd.min.js"></script>
+  <script src="vendor/forceatlas2.min.js"></script>
+  <script src="vendor/sigma.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
