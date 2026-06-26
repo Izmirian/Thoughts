@@ -11,6 +11,7 @@ import { processNewIdea } from './graph.js';
 import { analyzeImage, analyzePdfBuffer } from './analyze.js';
 import { transcribeAudio } from './transcribe.js';
 import { scheduleRecompute } from './recompute.js';
+import { scheduleEnrich } from './enrich.js';
 
 /** Derive the text to embed from whatever was sent. Returns { content, rawText, mediaBuffer }. */
 async function deriveContent({ text, mediaBase64, mediaMime, sourceType }) {
@@ -65,8 +66,10 @@ export async function ingestIdea(payload) {
   }
 
   // Refresh clusters/heat soon (debounced, off the response path) so hot spots
-  // appear without waiting for the 6-hourly cron.
+  // appear without waiting for the 6-hourly cron. Enrichment (entities + typed
+  // relations via Claude) runs on its own slower debounce; no-op without a key.
   scheduleRecompute(chatId);
+  scheduleEnrich(chatId);
 
   return { ok: true, id, created: true, linkedCount: link.linkedCount, topSimilarity: link.topSimilarity };
 }

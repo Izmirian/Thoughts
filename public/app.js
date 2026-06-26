@@ -52,9 +52,13 @@ function render(data) {
   for (const c of data.clusters) clusterLabels[c.id] = c.label;
 
   for (const n of data.nodes) {
+    const entity = n.kind === 'entity';
+    const base = entity ? '#c9d2e3' : clusterColor(n.cluster);
     graph.addNode(n.id, {
-      label: n.label || `#${n.id}`,
+      kind: n.kind || 'idea',
+      label: entity ? `◇ ${n.label}` : (n.label || `#${n.id}`),
       content: n.content,
+      entityType: n.entityType || null,
       cluster: n.cluster,
       clusterName: clusterLabels[n.cluster] || null,
       heat: n.heat,
@@ -63,14 +67,22 @@ function render(data) {
       createdAt: n.createdAt,
       x: Math.random() * 100,
       y: Math.random() * 100,
-      size: nodeSize(n.heat, n.degree),
-      baseColor: clusterColor(n.cluster),
-      color: clusterColor(n.cluster),
+      size: entity ? Math.min(22, 5 + (n.degree || 0) * 2.5) : nodeSize(n.heat, n.degree),
+      baseColor: base,
+      color: base,
     });
   }
   for (const e of data.edges) {
     if (graph.hasNode(e.source) && graph.hasNode(e.target) && !graph.hasEdge(e.source, e.target)) {
-      graph.addEdge(e.source, e.target, { weight: e.weight, size: Math.max(0.3, e.weight * 2.5) });
+      graph.addEdge(e.source, e.target, {
+        kind: 'idea', weight: e.weight, relation: e.relation || null, reason: e.reason || null,
+        size: e.relation ? Math.max(1, e.weight * 3) : Math.max(0.3, e.weight * 2.5),
+      });
+    }
+  }
+  for (const m of (data.mentions || [])) {
+    if (graph.hasNode(m.source) && graph.hasNode(m.target) && !graph.hasEdge(m.source, m.target)) {
+      graph.addEdge(m.source, m.target, { kind: 'mention', size: 0.7 });
     }
   }
 
@@ -102,6 +114,7 @@ function render(data) {
 
   setupInteractions();
   setupSearch();
+  window.__thoughts = { renderer, graph }; // debug handle (token-gated page)
 }
 
 // --- Reducers: derive per-render appearance from `state` -----------------------
@@ -122,11 +135,14 @@ function edgeReducer(edge, attr) {
   const [s, t] = graph.extremities(edge);
   if (state.focusNode && s !== state.focusNode && t !== state.focusNode) return { ...attr, hidden: true };
   if (state.filterCluster !== null) {
-    if (graph.getNodeAttribute(s, 'cluster') !== state.filterCluster || graph.getNodeAttribute(t, 'cluster') !== state.filterCluster) {
-      return { ...attr, hidden: true };
-    }
+    // keep mention edges only if their idea endpoint is in the filtered cluster
+    const sc = graph.getNodeAttribute(s, 'cluster'), tc = graph.getNodeAttribute(t, 'cluster');
+    if (attr.kind === 'mention') { if (sc !== state.filterCluster && tc !== state.filterCluster) return { ...attr, hidden: true }; }
+    else if (sc !== state.filterCluster || tc !== state.filterCluster) return { ...attr, hidden: true };
   }
   const focused = state.focusNode && (s === state.focusNode || t === state.focusNode);
+  if (attr.kind === 'mention') return { ...attr, color: focused ? 'rgba(230,190,120,0.8)' : 'rgba(210,180,120,0.3)' };
+  if (attr.relation) return { ...attr, color: focused ? 'rgba(150,220,170,0.85)' : 'rgba(130,200,150,0.45)' };
   return { ...attr, color: focused ? 'rgba(160,190,255,0.55)' : 'rgba(120,140,180,0.22)' };
 }
 
@@ -144,18 +160,47 @@ function el(tag, className, text) {
 function showDetails(node) {
   const a = graph.getNodeAttributes(node);
   const box = document.getElementById('details');
+  const isEntity = a.kind === 'entity';
+
   const header = el('div', 'details-head');
   const dot = el('span', 'legend-dot'); dot.style.background = a.baseColor;
-  header.append(dot, el('span', 'details-cluster', a.clusterName || (a.cluster != null ? 'cluster ' + a.cluster : 'unclustered')));
+  const heading = isEntity ? (a.entityType || 'entity')
+    : (a.clusterName || (a.cluster != null ? 'cluster ' + a.cluster : 'unclustered'));
+  header.append(dot, el('span', 'details-cluster', heading));
   const clear = el('span', 'details-clear', '✕'); clear.title = 'clear selection';
   clear.addEventListener('click', clearFocus);
   header.append(clear);
 
-  const meta = `${a.degree} links · heat ${(a.heat || 0).toFixed(2)}`
-    + (a.sourceType && a.sourceType !== 'text' ? ` · ${a.sourceType}` : '')
-    + (a.createdAt ? ` · ${String(a.createdAt).slice(0, 10)}` : '');
+  const children = [header, el('div', 'details-body', a.content || a.label)];
 
-  box.replaceChildren(header, el('div', 'details-body', a.content || a.label), el('div', 'meta', meta));
+  if (isEntity) {
+    children.push(el('div', 'meta', `${a.degree} ideas mention this`));
+  } else {
+    const meta = `${a.degree} links · heat ${(a.heat || 0).toFixed(2)}`
+      + (a.sourceType && a.sourceType !== 'text' ? ` · ${a.sourceType}` : '')
+      + (a.createdAt ? ` · ${String(a.createdAt).slice(0, 10)}` : '');
+    children.push(el('div', 'meta', meta));
+
+    // Typed relationships from this idea's edges.
+    const rels = [];
+    const ents = [];
+    graph.forEachEdge(node, (edge, attr, s, t) => {
+      const other = s === node ? t : s;
+      const oa = graph.getNodeAttributes(other);
+      if (attr.kind === 'mention' && oa.kind === 'entity') ents.push(oa.label.replace(/^◇ /, ''));
+      else if (attr.relation) rels.push(`${attr.relation} → ${(oa.content || oa.label || '').slice(0, 40)}`);
+    });
+    if (rels.length) {
+      children.push(el('div', 'details-sub', 'relationships'));
+      for (const r of rels.slice(0, 6)) children.push(el('div', 'details-rel', r));
+    }
+    if (ents.length) {
+      children.push(el('div', 'details-sub', 'entities'));
+      children.push(el('div', 'details-ents', ents.join(' · ')));
+    }
+  }
+
+  box.replaceChildren(...children);
   box.classList.remove('hidden');
 }
 

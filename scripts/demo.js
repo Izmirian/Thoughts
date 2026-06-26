@@ -12,6 +12,7 @@ import 'dotenv/config';
 import {
   createIdea, storeEmbedding, nearestNeighbors, getEdge, insertEdge,
   recomputeDegree, getGraph, closePool,
+  upsertEntity, linkIdeaEntity, setEdgeRelation,
 } from '../src/db.js';
 import { canonical, edgeWeight } from '../src/graph.js';
 import { recomputeClustersForChat } from '../src/clustering.js';
@@ -99,10 +100,43 @@ async function main() {
     }
     await recomputeDegree(me.id);
   }
+  // Simulate the Claude enrichment layer: entity hub-nodes (some bridging two
+  // hot spots) and a couple of typed relationships, so the demo shows the feature
+  // without an API key.
+  const idByText = {};
+  items.forEach((it, k) => { idByText[it.text] = ids[k].id; });
+  async function entity(name, type, texts) {
+    const eid = await upsertEntity(CHAT, name, type);
+    for (const t of texts) { const id = idByText[t]; if (id) await linkIdeaEntity(id, eid); }
+  }
+  async function relate(textA, textB, relation, why) {
+    const a = idByText[textA], b = idByText[textB];
+    if (!a || !b) return;
+    const [s, d] = canonical(a, b);
+    await setEdgeRelation(s, d, relation, why);
+  }
+  await entity('knowledge graph', 'topic', [
+    'An app that turns scattered notes into a knowledge graph',
+    'MVP: capture, auto-link by meaning, visualize the clusters',
+    'Pitch it as a second brain that organizes itself',
+  ]);
+  await entity('notes', 'topic', [               // bridges the app idea + reading clusters
+    'An app that turns scattered notes into a knowledge graph',
+    'Notes in my own words beat highlighting',
+  ]);
+  await entity('habits', 'topic', [              // bridges morning + fitness clusters
+    'Same breakfast every day removes a decision',
+    'Sign up for the spring 10k as a forcing function',
+  ]);
+  await relate('An app that turns scattered notes into a knowledge graph', 'MVP: capture, auto-link by meaning, visualize the clusters', 'elaborates', 'spells out the how');
+  await relate('MVP: capture, auto-link by meaning, visualize the clusters', 'Free personal tier, paid for teams and bigger graphs', 'builds-on', 'adds the business model');
+
   await recomputeClustersForChat(CHAT);
 
   const g = await getGraph({ chatId: CHAT });
-  console.log(`[Demo] ${g.nodes.length} ideas, ${g.edges.length} links, ${g.clusters.length} clusters.`);
+  const ideas = g.nodes.filter(n => n.kind === 'idea').length;
+  const entities = g.nodes.filter(n => n.kind === 'entity').length;
+  console.log(`[Demo] ${ideas} ideas, ${entities} entities, ${g.edges.length} links, ${g.mentions.length} mentions, ${g.clusters.length} clusters.`);
   console.log(`[Demo] Start the server (npm start) and open:`);
   console.log(`       http://localhost:${process.env.PORT || 3000}/?token=${process.env.VIEWER_TOKEN || 'YOUR_VIEWER_TOKEN'}`);
   await closePool();

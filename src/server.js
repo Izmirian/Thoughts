@@ -74,6 +74,19 @@ export function createServer() {
     }
   });
 
+  // On-demand entity + typed-relationship enrichment (token-gated). No-op without
+  // an ANTHROPIC_API_KEY. Returns once the pending batch is processed.
+  app.post('/api/enrich', gate, async (req, res) => {
+    try {
+      const { enrichAll } = await import('./enrich.js');
+      await enrichAll(req.query.limit ? parseInt(req.query.limit) : 50);
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('[Enrich] error:', e.message);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   app.get('/api/graph', gate, async (req, res) => {
     try {
       const data = await getGraph({

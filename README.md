@@ -38,6 +38,10 @@ WhatsApp ─► reminder-bot ─(POST /api/ingest, shared secret)─► Thoughts
 - **Hot spots** (`src/clustering.js`): Louvain communities + per-node heat (degree +
   cluster density + recent inflow), recomputed shortly after captures (debounced) and
   on a 6h cron, persisted so `/api/graph` is a pure read.
+- **Meaningful edges** (`src/enrich.js`): beyond raw similarity, Claude extracts
+  **entities** (people, projects, places, orgs, topics) as hub-nodes that tie together
+  otherwise-dissimilar ideas, and **types each relationship** (builds-on, contradicts,
+  elaborates, example-of, relates-to). Runs off the capture path; no-op without a key.
 - **Media**: images → Claude Vision, PDFs → Claude summary, voice → Whisper; the derived
   text is embedded so media become first-class nodes.
 
@@ -60,6 +64,7 @@ before accumulating data (each row stores `embedding_model` for a safe future re
 - `POST /api/ingest` — shared-secret (`THOUGHTS_INGEST_SECRET`); stores + links an idea.
 - `GET /api/graph` — token-gated (`VIEWER_TOKEN`); `{ nodes, edges, clusters }`.
 - `POST /api/recompute` — token-gated; regenerate clusters/heat now (`?label=1` to label).
+- `POST /api/enrich` — token-gated; run entity + relationship extraction now (needs a key).
 - `GET /health` — liveness.
 
 ## Env vars

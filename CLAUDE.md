@@ -15,6 +15,7 @@ WhatsApp ─► reminder-bot ─(POST /api/ingest, shared secret)─► Thoughts
                                                                ├─ store idea (Postgres + pgvector)
                                                                ├─ embed (Voyage) → nearest-neighbor → weighted edges
                                                                ├─ cron: Louvain clusters + heat + Claude labels
+                                                               ├─ enrich: Claude entities (hub-nodes) + typed relations
                                                                └─ token-gated Sigma.js viewer + GET /api/graph
 ```
 
@@ -35,6 +36,7 @@ WhatsApp ─► reminder-bot ─(POST /api/ingest, shared secret)─► Thoughts
 | `src/embeddings.js` | Provider-abstracted embeddings (`embed`/`embedBatch`, `EMBEDDING_DIM`) |
 | `src/graph.js` | Autonomous edge engine + weight math (pure, unit-tested) |
 | `src/clustering.js` | Louvain communities + heat scoring (cron) |
+| `src/enrich.js` | Claude entity extraction + typed relationships (cron + debounced; Haiku-first) |
 | `src/labeler.js` | Claude cluster names/summaries (cron, Haiku-first) |
 | `src/analyze.js` | Claude Vision for images/PDFs |
 | `src/transcribe.js` | Voice → text (Whisper) |

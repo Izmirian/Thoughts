@@ -59,6 +59,7 @@ async function initPostgres() {
       cluster_id INTEGER,
       heat REAL DEFAULT 0,
       degree INTEGER DEFAULT 0,
+      enriched_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE (chat_id, source, source_ref)
     )
@@ -73,9 +74,33 @@ async function initPostgres() {
       similarity REAL NOT NULL,
       weight REAL NOT NULL,
       reinforced_count INTEGER DEFAULT 0,
+      relation TEXT,
+      reason TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE (src, dst)
+    )
+  `);
+
+  // Entities (people, projects, places, orgs, topics) extracted from ideas, and
+  // the many-to-many links from ideas that mention them — entity hub-nodes tie
+  // disparate ideas together beyond raw semantic similarity.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS entities (
+      id SERIAL PRIMARY KEY,
+      chat_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      norm TEXT NOT NULL,
+      type TEXT DEFAULT 'topic',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (chat_id, type, norm)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS idea_entities (
+      idea_id INTEGER NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
+      entity_id INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+      UNIQUE (idea_id, entity_id)
     )
   `);
 
@@ -100,6 +125,9 @@ async function initPostgres() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_edges_chat ON idea_edges(chat_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_edges_src ON idea_edges(src)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_edges_dst ON idea_edges(dst)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_entities_chat ON entities(chat_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_idea_entities_idea ON idea_entities(idea_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_idea_entities_entity ON idea_entities(entity_id)`);
   } catch (e) { console.error('[DB] Index creation:', e.message); }
 
   // HNSW ANN index for cosine similarity (best-effort — needs pgvector >= 0.5).
@@ -141,6 +169,7 @@ async function initSqlite() {
       cluster_id INTEGER,
       heat REAL DEFAULT 0,
       degree INTEGER DEFAULT 0,
+      enriched_at TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE (chat_id, source, source_ref)
     );
@@ -152,9 +181,25 @@ async function initSqlite() {
       similarity REAL NOT NULL,
       weight REAL NOT NULL,
       reinforced_count INTEGER DEFAULT 0,
+      relation TEXT,
+      reason TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       UNIQUE (src, dst)
+    );
+    CREATE TABLE IF NOT EXISTS entities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chat_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      norm TEXT NOT NULL,
+      type TEXT DEFAULT 'topic',
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE (chat_id, type, norm)
+    );
+    CREATE TABLE IF NOT EXISTS idea_entities (
+      idea_id INTEGER NOT NULL,
+      entity_id INTEGER NOT NULL,
+      UNIQUE (idea_id, entity_id)
     );
     CREATE TABLE IF NOT EXISTS clusters (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -365,7 +410,7 @@ export async function getGraph({ chatId = null, limit = CONFIG.GRAPH_DEFAULT_LIM
 
   const idSet = new Set(nodes.map(n => n.id));
   const edgeRows = (await query(
-    `SELECT src, dst, weight FROM idea_edges ${chatId ? 'WHERE chat_id = ?' : ''} ${minWeight ? (chatId ? 'AND' : 'WHERE') + ' weight >= ?' : ''}`,
+    `SELECT src, dst, weight, relation, reason FROM idea_edges ${chatId ? 'WHERE chat_id = ?' : ''} ${minWeight ? (chatId ? 'AND' : 'WHERE') + ' weight >= ?' : ''}`,
     [...(chatId ? [chatId] : []), ...(minWeight ? [minWeight] : [])]
   )).rows;
   const edges = edgeRows.filter(e => idSet.has(e.src) && idSet.has(e.dst));
@@ -375,18 +420,54 @@ export async function getGraph({ chatId = null, limit = CONFIG.GRAPH_DEFAULT_LIM
     chatId ? [chatId] : []
   )).rows;
 
+  // Entities mentioned by the visible ideas, plus the idea→entity mention links.
+  const entRows = (await query(
+    `SELECT e.id, e.name, e.type, COUNT(ie.idea_id) AS mentions
+     FROM entities e JOIN idea_entities ie ON ie.entity_id = e.id
+     ${chatId ? 'WHERE e.chat_id = ?' : ''}
+     GROUP BY e.id, e.name, e.type`,
+    chatId ? [chatId] : []
+  )).rows;
+  const mentionRows = (await query(
+    `SELECT ie.idea_id, ie.entity_id FROM idea_entities ie
+     JOIN entities e ON e.id = ie.entity_id ${chatId ? 'WHERE e.chat_id = ?' : ''}`,
+    chatId ? [chatId] : []
+  )).rows.filter(m => idSet.has(m.idea_id));
+  // Only surface entities that link >=2 visible ideas (true connectors); drop the rest.
+  const entityMentionCount = {};
+  for (const m of mentionRows) entityMentionCount[m.entity_id] = (entityMentionCount[m.entity_id] || 0) + 1;
+  const keepEntity = new Set(entRows.filter(e => entityMentionCount[e.id] >= 2).map(e => e.id));
+
+  const ideaNodes = nodes.map(n => ({
+    id: n.id,
+    kind: 'idea',
+    label: (n.content || '').slice(0, 80),
+    content: n.content,
+    sourceType: n.source_type,
+    cluster: n.cluster_id,
+    heat: Number(n.heat) || 0,
+    degree: n.degree || 0,
+    createdAt: n.created_at,
+  }));
+  const entityNodes = entRows.filter(e => keepEntity.has(e.id)).map(e => ({
+    id: `e${e.id}`,
+    kind: 'entity',
+    label: e.name,
+    content: e.name,
+    entityType: e.type,
+    degree: Number(e.mentions) || 0,
+    heat: 0,
+    cluster: null,
+  }));
+
   return {
-    nodes: nodes.map(n => ({
-      id: n.id,
-      label: (n.content || '').slice(0, 80),
-      content: n.content,
-      sourceType: n.source_type,
-      cluster: n.cluster_id,
-      heat: Number(n.heat) || 0,
-      degree: n.degree || 0,
-      createdAt: n.created_at,
+    nodes: [...ideaNodes, ...entityNodes],
+    edges: edges.map(e => ({
+      source: e.src, target: e.dst, weight: Number(e.weight) || 0,
+      relation: e.relation || null, reason: e.reason || null,
     })),
-    edges: edges.map(e => ({ source: e.src, target: e.dst, weight: Number(e.weight) || 0 })),
+    mentions: mentionRows.filter(m => keepEntity.has(m.entity_id))
+      .map(m => ({ source: m.idea_id, target: `e${m.entity_id}` })),
     clusters: clusters.map(c => ({
       id: c.id, label: c.label, summary: c.summary,
       size: c.size, density: Number(c.density) || 0, heat: Number(c.heat) || 0,
@@ -475,4 +556,70 @@ export async function pruneStaleEdges() {
     : `datetime('now','-${CONFIG.EDGE_PRUNE_DAYS} days')`;
   const r = await run(`DELETE FROM idea_edges WHERE weight < ? AND updated_at < ${cutoff}`, [CONFIG.EDGE_PRUNE_WEIGHT]);
   return r.changes || 0;
+}
+
+// =====================================================================
+// Enrichment: entities + typed relationships (Claude, off the hot path)
+// =====================================================================
+
+/** Ideas not yet enriched (oldest first), with text for the LLM. */
+export async function getUnenrichedIdeas(chatId, limit) {
+  return (await query(
+    'SELECT id, content FROM ideas WHERE chat_id = ? AND enriched_at IS NULL ORDER BY id ASC LIMIT ?',
+    [chatId, limit]
+  )).rows;
+}
+
+export async function countUnenriched(chatId) {
+  const r = await queryOne('SELECT COUNT(*) AS c FROM ideas WHERE chat_id = ? AND enriched_at IS NULL', [chatId]);
+  return Number(r?.c) || 0;
+}
+
+/** An idea's existing similarity-linked neighbours (strongest first), with text. */
+export async function getNeighborIdeas(ideaId, limit) {
+  return (await query(
+    `SELECT i.id, i.content FROM ideas i
+     JOIN idea_edges e ON ((e.src = ? AND e.dst = i.id) OR (e.dst = ? AND e.src = i.id))
+     ORDER BY e.weight DESC LIMIT ?`,
+    [ideaId, ideaId, limit]
+  )).rows;
+}
+
+export async function markEnriched(ideaId) {
+  const ts = isPostgres ? 'NOW()' : "datetime('now')";
+  await run(`UPDATE ideas SET enriched_at = ${ts} WHERE id = ?`, [ideaId]);
+}
+
+/** Insert or fetch an entity by (chat, type, normalized name). Returns its id. */
+export async function upsertEntity(chatId, name, type = 'topic') {
+  const norm = name.toLowerCase().trim();
+  if (!norm) return null;
+  if (isPostgres) {
+    const r = await pool.query(
+      `INSERT INTO entities (chat_id, name, norm, type) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (chat_id, type, norm) DO NOTHING RETURNING id`,
+      [chatId, name.trim(), norm, type]
+    );
+    if (r.rows[0]) return r.rows[0].id;
+    const ex = await pool.query('SELECT id FROM entities WHERE chat_id=$1 AND type=$2 AND norm=$3', [chatId, type, norm]);
+    return ex.rows[0]?.id;
+  }
+  const res = sqliteDb.prepare('INSERT OR IGNORE INTO entities (chat_id, name, norm, type) VALUES (?,?,?,?)')
+    .run(chatId, name.trim(), norm, type);
+  if (res.changes > 0) return res.lastInsertRowid;
+  return sqliteDb.prepare('SELECT id FROM entities WHERE chat_id=? AND type=? AND norm=?').get(chatId, type, norm)?.id;
+}
+
+export async function linkIdeaEntity(ideaId, entityId) {
+  if (!entityId) return;
+  if (isPostgres) {
+    await pool.query('INSERT INTO idea_entities (idea_id, entity_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [ideaId, entityId]);
+  } else {
+    sqliteDb.prepare('INSERT OR IGNORE INTO idea_entities (idea_id, entity_id) VALUES (?,?)').run(ideaId, entityId);
+  }
+}
+
+/** Annotate an existing edge with a typed relationship + short reason. */
+export async function setEdgeRelation(src, dst, relation, reason) {
+  await run('UPDATE idea_edges SET relation = ?, reason = ? WHERE src = ? AND dst = ?', [relation, reason || null, src, dst]);
 }

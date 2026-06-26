@@ -5,6 +5,7 @@
 import cron from 'node-cron';
 import { recomputeAllClusters } from './clustering.js';
 import { labelAllClusters } from './labeler.js';
+import { enrichAll } from './enrich.js';
 import { pruneStaleEdges } from './db.js';
 
 export function startCron() {
@@ -12,6 +13,12 @@ export function startCron() {
   cron.schedule('0 */6 * * *', async () => {
     console.log('[Cron] Recomputing clusters + heat...');
     try { await recomputeAllClusters(); } catch (e) { console.error('[Cron] cluster:', e.message); }
+  });
+
+  // Entity + typed-relationship enrichment via Claude — every 2 hours (catches
+  // any ideas the debounced trigger missed, e.g. after a restart).
+  cron.schedule('0 */2 * * *', async () => {
+    try { await enrichAll(); } catch (e) { console.error('[Cron] enrich:', e.message); }
   });
 
   // Cluster labels via Claude — daily at 4am.
@@ -26,5 +33,5 @@ export function startCron() {
     catch (e) { console.error('[Cron] prune:', e.message); }
   });
 
-  console.log('[Cron] Scheduled: clustering (6h), labeling (daily 4am), edge cleanup (daily 3am)');
+  console.log('[Cron] Scheduled: clustering (6h), enrichment (2h), labeling (daily 4am), edge cleanup (daily 3am)');
 }

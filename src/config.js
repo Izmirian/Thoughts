@@ -31,6 +31,9 @@ export const CONFIG = {
   //  with a max wait so a long burst still refreshes periodically)
   RECOMPUTE_DEBOUNCE_MS: parseInt(process.env.RECOMPUTE_DEBOUNCE_MS || '20000'),
   RECOMPUTE_MAX_WAIT_MS: parseInt(process.env.RECOMPUTE_MAX_WAIT_MS || '120000'),
+  // Debounce before enriching newly-captured ideas (Claude calls; longer than
+  // recompute so a burst of captures is enriched in one settled batch).
+  ENRICH_DEBOUNCE_MS: parseInt(process.env.ENRICH_DEBOUNCE_MS || '45000'),
 
   // --- Limits / timeouts ---
   FETCH_TIMEOUT: 20000,              // default outbound HTTP timeout (ms)
