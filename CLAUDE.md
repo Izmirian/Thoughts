@@ -31,7 +31,8 @@ WhatsApp ─► reminder-bot ─(POST /api/ingest, shared secret)─► Thoughts
 | File | Purpose |
 |------|---------|
 | `start.js` | Entry — boots server + cron, crash/shutdown handlers |
-| `src/server.js` | Express: `/api/ingest` (secret), `/api/graph` (token), static viewer, `/health` |
+| `src/server.js` | Express: `/api/ingest` (secret), `/api/graph` + `/api/status` (token), static viewer, `/health` (shallow open; `?deep=1` token-gated) |
+| `src/health.js` | Deep health checks + status aggregation (probes reminder-bot via `BOT_HEALTH_URL`) |
 | `src/ingest.js` | Normalize payload (text/image/audio/pdf) → store → embed → connect |
 | `src/embeddings.js` | Provider-abstracted embeddings (`embed`/`embedBatch`, `EMBEDDING_DIM`) |
 | `src/graph.js` | Autonomous edge engine + weight math (pure, unit-tested) |

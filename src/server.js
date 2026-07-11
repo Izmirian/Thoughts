@@ -32,7 +32,21 @@ export function createServer() {
   app.use(express.json({ limit: CONFIG.MAX_INGEST_BODY }));
 
   // --- Health ---
-  app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+  // Shallow (default) stays open + fast for probes; ?deep=1 exposes personal
+  // metadata (counts, timestamps) so it requires the viewer token.
+  app.get('/health', async (req, res) => {
+    if (req.query.deep !== '1') return res.json({ status: 'ok', uptime: process.uptime() });
+    if (process.env.VIEWER_TOKEN && !safeEqual(viewerToken(req), process.env.VIEWER_TOKEN)) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    try {
+      const { collectDeepHealth, summarizeHealth } = await import('./health.js');
+      const checks = await collectDeepHealth();
+      res.json({ status: summarizeHealth(checks), uptime: process.uptime(), checks });
+    } catch (e) {
+      res.status(500).json({ status: 'down', error: e.message });
+    }
+  });
 
   // --- Ingest (reminder-bot -> here). Shared-secret, NOT the viewer token. ---
   app.post('/api/ingest', async (req, res) => {
@@ -84,6 +98,29 @@ export function createServer() {
     } catch (e) {
       console.error('[Enrich] error:', e.message);
       res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // Aggregated system status for the viewer's "full green light" pill. Probes
+  // the reminder-bot server-side (no browser CORS) and caches briefly so viewer
+  // polling stays cheap.
+  let statusCache = { at: 0, payload: null };
+  app.get('/api/status', gate, async (req, res) => {
+    try {
+      if (statusCache.payload && Date.now() - statusCache.at < 20000) {
+        return res.json(statusCache.payload);
+      }
+      const { collectDeepHealth, statusFromChecks, probeBotHealth } = await import('./health.js');
+      const [checks, bot] = await Promise.all([
+        collectDeepHealth(),
+        probeBotHealth(process.env.BOT_HEALTH_URL),
+      ]);
+      const payload = { generatedAt: new Date().toISOString(), ...statusFromChecks(checks, bot) };
+      statusCache = { at: Date.now(), payload };
+      res.json(payload);
+    } catch (e) {
+      console.error('[Status] error:', e.message);
+      res.status(500).json({ overall: 'unknown', error: e.message });
     }
   });
 
