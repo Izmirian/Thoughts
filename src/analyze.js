@@ -17,7 +17,7 @@ export async function analyzeImage(imageBuffer, mimeType, prompt) {
     const userPrompt = prompt || 'Describe this image as a single concise idea/note for a personal knowledge graph. Capture the key subject, concepts, and any text shown. 1-3 sentences, no preamble.';
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 500,
       messages: [{
         role: 'user',
@@ -43,7 +43,7 @@ export async function analyzePdfBuffer(pdfBuffer, prompt) {
     const userPrompt = prompt || 'Summarize this document as a concise idea/note for a personal knowledge graph: the core topic and key points. 2-4 sentences, no preamble.';
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 700,
       messages: [{
         role: 'user',
