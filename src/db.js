@@ -549,6 +549,37 @@ export async function sampleClusterContents(chatId, clusterKey, limit) {
   )).rows.map(r => r.content);
 }
 
+/** Delete all data for a chat (ideas cascade to edges + idea_entities). Owner maintenance. */
+/** Freshness metrics for health checks: idea volume + last activity timestamps. */
+export async function getFreshness() {
+  const ideas = await queryOne('SELECT COUNT(*) AS n, MAX(created_at) AS last FROM ideas', []);
+  const clusters = await queryOne('SELECT COUNT(*) AS n, MAX(updated_at) AS last FROM clusters', []);
+  return {
+    ideaCount: Number(ideas?.n) || 0,
+    lastIngestAt: ideas?.last || null,
+    clusterCount: Number(clusters?.n) || 0,
+    lastRecomputeAt: clusters?.last || null,
+  };
+}
+
+/** Whether the pgvector extension is active (SQLite has no equivalent — skipped). */
+export async function hasPgvector() {
+  if (!isPostgres) return { ok: true, skipped: 'sqlite' };
+  try {
+    const r = await pool.query("SELECT 1 FROM pg_extension WHERE extname = 'vector'");
+    return { ok: r.rows.length > 0 };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+export async function forgetChat(chatId) {
+  const ideas = await run('DELETE FROM ideas WHERE chat_id = ?', [chatId]);
+  const entities = await run('DELETE FROM entities WHERE chat_id = ?', [chatId]);
+  const clusters = await run('DELETE FROM clusters WHERE chat_id = ?', [chatId]);
+  return { ideas: ideas.changes || 0, entities: entities.changes || 0, clusters: clusters.changes || 0 };
+}
+
 /** Prune weak + stale edges. Never removes nodes. Returns count removed. */
 export async function pruneStaleEdges() {
   const cutoff = isPostgres

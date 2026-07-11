@@ -37,7 +37,10 @@ export const EMBEDDING_DIM = parseInt(
 // Cosine threshold above which an edge is drawn. The semantic providers warrant a
 // high bar; the lexical `local` provider produces lower absolute similarities, so
 // it gets a lower default. An explicit SIM_THRESHOLD env always wins (see graph.js).
-export const DEFAULT_SIM_THRESHOLD = EMBEDDING_PROVIDER === 'local' ? 0.30 : 0.78;
+// Tuned for voyage-3-lite: related ideas land ~0.65-0.80, unrelated ~0.45-0.55,
+// so 0.62 surfaces real connections without spurious edges. `local` is lexical
+// (lower absolute scores) so it gets a lower bar. Override via SIM_THRESHOLD.
+export const DEFAULT_SIM_THRESHOLD = EMBEDDING_PROVIDER === 'local' ? 0.30 : 0.62;
 
 function truncate(text) {
   const t = (text || '').toString().trim();
