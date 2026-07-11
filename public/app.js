@@ -266,10 +266,40 @@ function showDetails(node) {
       children.push(el('div', 'details-sub', 'entities'));
       children.push(el('div', 'details-ents', ents.join(' · ')));
     }
+
+    const del = el('button', 'details-delete', 'Delete this idea');
+    del.addEventListener('click', () => deleteIdea(node));
+    children.push(del);
   }
 
   box.replaceChildren(...children);
   box.classList.remove('hidden');
+}
+
+// Delete a single idea (e.g. a duplicate capture), then refresh in place —
+// same reload-preserving-layout pattern as the recompute button.
+async function deleteIdea(node) {
+  if (!confirm('Delete this idea? This cannot be undone.')) return;
+  try {
+    const res = await fetch(`/api/idea/${encodeURIComponent(node)}?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+    return;
+  }
+  const dataRes = await fetch(`/api/graph?token=${encodeURIComponent(token)}`);
+  if (!dataRes.ok) return;
+  const data = await dataRes.json();
+  const prev = new Map();
+  graph?.forEachNode((id, a) => { if (a.kind !== 'halo') prev.set(String(id), { x: a.x, y: a.y }); });
+  clearFocus();
+  state.hoverNode = null; state.hoverNeighbors = new Set();
+  buildGraph(data, prev);
+  document.getElementById('stats').textContent =
+    `${data.nodes.filter(n => n.kind !== 'entity').length} ideas · ${data.edges.length} links · ${data.clusters.length} clusters`;
+  buildLegend(data.clusters);
+  updateNotice(data);
+  if (!renderer) mountRenderer(); else refresh();
 }
 
 function clearFocus() {

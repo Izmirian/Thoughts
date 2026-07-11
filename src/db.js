@@ -580,6 +580,23 @@ export async function forgetChat(chatId) {
   return { ideas: ideas.changes || 0, entities: entities.changes || 0, clusters: clusters.changes || 0 };
 }
 
+/**
+ * Delete a single idea (e.g. a duplicate capture). Postgres cascades edges +
+ * entity links via FK; SQLite has no FK enforcement so they're dropped explicitly.
+ * Neighbours' degree is refreshed so the viewer's link counts stay accurate.
+ */
+export async function deleteIdea(ideaId) {
+  const idea = await queryOne('SELECT id FROM ideas WHERE id = ?', [ideaId]);
+  if (!idea) return { ok: false, error: 'not found' };
+  const neighbors = (await query('SELECT src, dst FROM idea_edges WHERE src = ? OR dst = ?', [ideaId, ideaId]))
+    .rows.map(e => (e.src === ideaId ? e.dst : e.src));
+  await run('DELETE FROM idea_edges WHERE src = ? OR dst = ?', [ideaId, ideaId]);
+  await run('DELETE FROM idea_entities WHERE idea_id = ?', [ideaId]);
+  await run('DELETE FROM ideas WHERE id = ?', [ideaId]);
+  for (const n of neighbors) await recomputeDegree(n);
+  return { ok: true };
+}
+
 /** Prune weak + stale edges. Never removes nodes. Returns count removed. */
 export async function pruneStaleEdges() {
   const cutoff = isPostgres

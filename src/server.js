@@ -178,6 +178,20 @@ export function createServer() {
     }
   });
 
+  // Delete a single idea (e.g. a duplicate capture). Token-gated, viewer-initiated.
+  app.delete('/api/idea/:id', gate, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ ok: false, error: 'invalid id' });
+    try {
+      const { deleteIdea } = await import('./db.js');
+      const result = await deleteIdea(id);
+      res.status(result.ok ? 200 : 404).json(result);
+    } catch (e) {
+      console.error('[DeleteIdea] error:', e.message);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   app.get('/api/graph', gate, async (req, res) => {
     try {
       const data = await getGraph({
