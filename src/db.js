@@ -609,11 +609,47 @@ export async function countUnenriched(chatId) {
 /** An idea's existing similarity-linked neighbours (strongest first), with text. */
 export async function getNeighborIdeas(ideaId, limit) {
   return (await query(
-    `SELECT i.id, i.content FROM ideas i
+    `SELECT i.id, i.content, i.created_at FROM ideas i
      JOIN idea_edges e ON ((e.src = ? AND e.dst = i.id) OR (e.dst = ? AND e.src = i.id))
      ORDER BY e.weight DESC LIMIT ?`,
     [ideaId, ideaId, limit]
   )).rows;
+}
+
+/**
+ * Everything the weekly digest needs, in one call: volume this week, the hottest
+ * labeled cluster, one resurfacing candidate (old + poorly connected — the ideas
+ * most likely to be forgotten), and the freshest typed-relation bridge.
+ */
+export async function getDigestData(chatId) {
+  const week = isPostgres ? "NOW() - INTERVAL '7 days'" : "datetime('now','-7 days')";
+  const month = isPostgres ? "NOW() - INTERVAL '30 days'" : "datetime('now','-30 days')";
+
+  const totals = await queryOne('SELECT COUNT(*) AS n FROM ideas WHERE chat_id = ?', [chatId]);
+  const recent = await queryOne(`SELECT COUNT(*) AS n FROM ideas WHERE chat_id = ? AND created_at >= ${week}`, [chatId]);
+
+  const hottest = await queryOne(
+    `SELECT cluster_key, label, summary, size, heat FROM clusters
+     WHERE chat_id = ? AND size > 1 ORDER BY heat DESC LIMIT 1`, [chatId]);
+
+  const resurface = await queryOne(
+    `SELECT id, content, created_at, degree FROM ideas
+     WHERE chat_id = ? AND created_at < ${month}
+     ORDER BY degree ASC, RANDOM() LIMIT 1`, [chatId]);
+
+  const bridge = await queryOne(
+    `SELECT e.relation, e.reason, a.content AS src_content, b.content AS dst_content
+     FROM idea_edges e JOIN ideas a ON a.id = e.src JOIN ideas b ON b.id = e.dst
+     WHERE e.chat_id = ? AND e.relation IS NOT NULL
+     ORDER BY e.updated_at DESC LIMIT 1`, [chatId]);
+
+  return {
+    ideaCount: Number(totals?.n) || 0,
+    newThisWeek: Number(recent?.n) || 0,
+    hottestCluster: hottest || null,
+    resurface: resurface || null,
+    bridge: bridge || null,
+  };
 }
 
 export async function markEnriched(ideaId) {
