@@ -8,16 +8,40 @@
 </head>
 <body>
   <div id="graph"></div>
+  <div id="overlay" class="hidden"></div>
 
   <div id="panel">
-    <h1>🧠 Thoughts</h1>
+    <div class="panel-head">
+      <h1>🧠 Thoughts</h1>
+      <button id="status-pill" class="status-pill unknown" title="System status">
+        <span class="status-dot unknown"></span><span>Checking…</span>
+      </button>
+    </div>
+    <div id="status-detail" class="hidden"></div>
     <div id="stats">loading…</div>
     <input id="search" type="text" placeholder="search ideas…" autocomplete="off" />
-    <button id="recompute">↻ Recompute hot spots</button>
+    <div class="btn-row">
+      <button id="recompute">↻ Recompute hot spots</button>
+      <button id="fit" title="Zoom to fit">⤢ Fit</button>
+    </div>
     <div id="notice" class="hidden"></div>
+
+    <div class="section-title">Hot spots</div>
     <div id="legend"></div>
+
+    <div class="section-title">Connections</div>
+    <div id="edge-legend">
+      <div class="edge-row"><span class="edge-swatch sim"></span><span>similar meaning</span></div>
+      <div class="edge-row"><span class="edge-swatch rel"></span><span>typed relation</span></div>
+      <div class="edge-row"><span class="edge-swatch men"></span><span>mentions entity</span></div>
+      <div class="edge-row ramp-row">
+        <span class="edge-ramp"></span>
+        <span class="ramp-labels"><em>weak</em><em>strong</em></span>
+      </div>
+    </div>
+
     <div id="details" class="hidden"></div>
-    <div class="hint">scroll to zoom · drag to pan · click a node to focus · click a cluster to filter</div>
+    <div class="hint">scroll to zoom · drag to pan · click a node to focus · click a cluster to filter · esc to clear</div>
   </div>
 
   <div id="tooltip" class="hidden"></div>
@@ -27,6 +51,7 @@
   <script src="vendor/graphology.umd.min.js"></script>
   <script src="vendor/forceatlas2.min.js"></script>
   <script src="vendor/sigma.min.js"></script>
+  <script src="viz.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
