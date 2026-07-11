@@ -65,11 +65,22 @@ export async function ingestIdea(payload) {
     console.error('[Ingest] embedding/linking failed (idea still stored):', e.message);
   }
 
+  // Resurfacing at the moment of capture: name the strongest related older idea
+  // so the bot's confirmation can echo it back ("relates to: …").
+  let topNeighbor = null;
+  if (link.linkedCount > 0) {
+    try {
+      const { getNeighborIdeas } = await import('./db.js');
+      const [nb] = await getNeighborIdeas(id, 1);
+      if (nb) topNeighbor = { id: nb.id, content: (nb.content || '').slice(0, 90), createdAt: nb.created_at || null };
+    } catch (e) { console.error('[Ingest] neighbor echo failed:', e.message); }
+  }
+
   // Refresh clusters/heat soon (debounced, off the response path) so hot spots
   // appear without waiting for the 6-hourly cron. Enrichment (entities + typed
   // relations via Claude) runs on its own slower debounce; no-op without a key.
   scheduleRecompute(chatId);
   scheduleEnrich(chatId);
 
-  return { ok: true, id, created: true, linkedCount: link.linkedCount, topSimilarity: link.topSimilarity };
+  return { ok: true, id, created: true, linkedCount: link.linkedCount, topSimilarity: link.topSimilarity, topNeighbor };
 }

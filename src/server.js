@@ -48,17 +48,58 @@ export function createServer() {
     }
   });
 
-  // --- Ingest (reminder-bot -> here). Shared-secret, NOT the viewer token. ---
-  app.post('/api/ingest', async (req, res) => {
-    const secret = req.headers['x-ingest-secret'];
-    if (!safeEqual(secret, process.env.THOUGHTS_INGEST_SECRET)) {
-      return res.status(403).json({ ok: false, error: 'forbidden' });
-    }
+  // --- Bot-facing endpoints (shared ingest secret, NOT the viewer token) ---
+  const secretGate = (req, res, next) => {
+    if (safeEqual(req.headers['x-ingest-secret'], process.env.THOUGHTS_INGEST_SECRET)) return next();
+    res.status(403).json({ ok: false, error: 'forbidden' });
+  };
+
+  app.post('/api/ingest', secretGate, async (req, res) => {
     try {
       const result = await ingestIdea(req.body || {});
       res.status(result.ok ? 200 : 400).json(result);
     } catch (e) {
       console.error('[Ingest] error:', e.message);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // "Ask my brain": semantic Q&A over the chat's own captured notes.
+  app.post('/api/ask', secretGate, async (req, res) => {
+    try {
+      const { askBrain } = await import('./ask.js');
+      const result = await askBrain(req.body?.chatId, req.body?.question);
+      res.status(result.ok ? 200 : 400).json(result);
+    } catch (e) {
+      console.error('[Ask] error:', e.message);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // Weekly-digest data for the bot's proactive message (bot formats + delivers).
+  app.get('/api/digest', secretGate, async (req, res) => {
+    const chat = req.query.chat;
+    if (!chat) return res.status(400).json({ ok: false, error: 'missing ?chat=' });
+    try {
+      const { getDigestData } = await import('./db.js');
+      res.json({ ok: true, ...(await getDigestData(chat)) });
+    } catch (e) {
+      console.error('[Digest] error:', e.message);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // Seed a structured entity (e.g. a contact from the bot) as a graph hub-node,
+  // so Claude enrichment can link ideas to people/projects the user already tracks.
+  app.post('/api/entity-seed', secretGate, async (req, res) => {
+    const { chatId, name, type } = req.body || {};
+    if (!chatId || !name) return res.status(400).json({ ok: false, error: 'missing chatId or name' });
+    try {
+      const { upsertEntity } = await import('./db.js');
+      const id = await upsertEntity(chatId, String(name), ['person', 'project', 'place', 'org', 'topic'].includes(type) ? type : 'person');
+      res.json({ ok: true, id });
+    } catch (e) {
+      console.error('[EntitySeed] error:', e.message);
       res.status(500).json({ ok: false, error: e.message });
     }
   });
