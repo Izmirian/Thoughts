@@ -34,7 +34,7 @@ async function labelOne(contents) {
     + `\n\nReturn ONLY JSON: { "label": "<2-4 word theme name>", "summary": "<one sentence on what connects them>" }`;
 
   let out = parseJson(await callClaude('claude-haiku-4-5-20251001', prompt).catch(() => null));
-  if (!out?.label) out = parseJson(await callClaude('claude-sonnet-4-20250514', prompt).catch(() => null));
+  if (!out?.label) out = parseJson(await callClaude('claude-sonnet-5', prompt).catch(() => null));
   return out?.label ? out : null;
 }
 

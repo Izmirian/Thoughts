@@ -37,3 +37,26 @@ test('DB: idea insert is idempotent + ANN + edge dedupe', { skip: !HAS_DB }, asy
   const edge = await db.getEdge(a.id, b.id);
   assert.ok(edge, 'edge exists');
 });
+
+test('DB: deleteIdea removes the row, its edges, and refreshes neighbour degree', { skip: !HAS_DB }, async () => {
+  const db = await import('../src/db.js');
+  const chat = 'test-del-' + Date.now();
+
+  const a = await db.createIdea({ chatId: chat, content: 'dup one', source: 'seed', sourceRef: 'd1' });
+  const b = await db.createIdea({ chatId: chat, content: 'dup two', source: 'seed', sourceRef: 'd2' });
+  await db.insertEdge(chat, a.id, b.id, 0.9, 0.9);
+  await db.recomputeDegree(a.id);
+  await db.recomputeDegree(b.id);
+
+  const result = await db.deleteIdea(a.id);
+  assert.equal(result.ok, true);
+
+  assert.equal(await db.getIdea(a.id), null);
+  assert.equal(await db.getEdge(a.id, b.id), null);
+
+  const bAfter = await db.getIdea(b.id);
+  assert.equal(bAfter.degree, 0, 'neighbour degree recomputed after edge removal');
+
+  const missing = await db.deleteIdea(a.id);
+  assert.equal(missing.ok, false, 'deleting an already-gone idea reports not found');
+});

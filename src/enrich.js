@@ -78,7 +78,7 @@ export async function enrichIdea(chatId, ideaId) {
   const prompt = buildPrompt(idea.content, neighbors);
 
   let result = parseJson(await callClaude('claude-haiku-4-5-20251001', prompt).catch(() => null));
-  if (!result) result = parseJson(await callClaude('claude-sonnet-4-20250514', prompt).catch(() => null));
+  if (!result) result = parseJson(await callClaude('claude-sonnet-5', prompt).catch(() => null));
   const applied = result ? await applyEnrichment(chatId, ideaId, result) : { entities: 0, links: 0 };
   await markEnriched(ideaId); // mark even on failure so we don't loop forever on a bad row
   return applied;

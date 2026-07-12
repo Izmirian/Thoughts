@@ -74,7 +74,7 @@ export async function askBrain(chatId, question) {
   if (process.env.ANTHROPIC_API_KEY) {
     const prompt = buildAskPrompt(q, sources);
     answer = await callClaude('claude-haiku-4-5-20251001', prompt).catch(() => null);
-    if (!answer) answer = await callClaude('claude-sonnet-4-20250514', prompt).catch(() => null);
+    if (!answer) answer = await callClaude('claude-sonnet-5', prompt).catch(() => null);
   }
   // Without a key (or on failure) we still return the raw matching notes.
   return { ok: true, answer, sources };
