@@ -3,33 +3,97 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0b0e14" />
   <title>Thoughts — Idea Graph</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Design contract — refinement of the incumbent world (owner-confirmed).
+       THESIS: the graph IS the interface; chrome floats, recedes, never boxes it in.
+       OWN-WORLD: near-black blue ground, cluster-hued glowing nodes, glass pills,
+       system type, status told by glyph + color. STORY: glance the hot spots,
+       explore the edges, watch new ideas arrive live and grow out of their cluster.
+       FIRST VIEWPORT: full-bleed centered graph; one slim centered pill up top;
+       controls in a right drawer; node details bottom-left. -->
+
   <div id="graph"></div>
   <div id="overlay" class="hidden"></div>
 
-  <div id="panel">
-    <div class="panel-head">
-      <h1>🧠 Thoughts</h1>
-      <button id="status-pill" class="status-pill unknown" title="System status">
-        <span class="status-dot unknown"></span><span>Checking…</span>
-      </button>
+  <header id="topbar">
+    <div class="brand" title="Thoughts — your idea graph">
+      <svg class="brand-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <path d="M8.1 15.3 15.2 7.9" opacity="0.5" />
+          <path d="M17.4 9.3 17.8 14.6" opacity="0.5" />
+          <path d="M8.6 16.9 15.9 16.7" opacity="0.5" />
+        </g>
+        <circle cx="6.4" cy="16.9" r="2.6" fill="currentColor" opacity="0.75" />
+        <circle cx="17.1" cy="6.1" r="3.1" fill="currentColor" />
+        <circle cx="17.9" cy="16.6" r="1.9" fill="currentColor" opacity="0.55" />
+      </svg>
+      <span class="brand-name">Thoughts</span>
     </div>
+
+    <div id="stats" aria-live="polite">loading…</div>
+
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <circle cx="10.5" cy="10.5" r="6" />
+          <path d="M15.2 15.2 20 20" />
+        </g>
+      </svg>
+      <input id="search" type="text" placeholder="Search ideas…" autocomplete="off" aria-label="Search ideas" />
+    </div>
+
+    <div id="live" class="live" role="status">
+      <span class="live-dot"></span><span class="live-text">—</span>
+    </div>
+
+    <button id="status-pill" class="status-pill unknown" title="System status" aria-expanded="false">
+      <span class="status-dot unknown"></span><span class="status-text">Checking…</span>
+    </button>
+
+    <button id="menu-toggle" title="Controls &amp; legend" aria-label="Controls and legend" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M4 7.5h16 M4 16.5h16" />
+          <circle cx="9.5" cy="7.5" r="2.2" fill="var(--panel-solid)" />
+          <circle cx="15" cy="16.5" r="2.2" fill="var(--panel-solid)" />
+        </g>
+      </svg>
+    </button>
+  </header>
+
+  <aside id="drawer" class="hidden" aria-label="Controls and legend">
     <div id="status-detail" class="hidden"></div>
-    <div id="stats">loading…</div>
-    <input id="search" type="text" placeholder="search ideas…" autocomplete="off" />
-    <div class="btn-row">
-      <button id="recompute">↻ Recompute hot spots</button>
-      <button id="fit" title="Zoom to fit">⤢ Fit</button>
-    </div>
     <div id="notice" class="hidden"></div>
 
-    <div class="section-title">Hot spots</div>
+    <div class="btn-row">
+      <button id="recompute">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 12a8 8 0 1 1-2.5-5.8" />
+            <path d="M20 3v4h-4" />
+          </g>
+        </svg>
+        <span class="btn-label">Recompute hot spots</span>
+      </button>
+      <button id="fit" title="Zoom to fit">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 4H4v5 M15 4h5v5 M9 20H4v-5 M15 20h5v-5" />
+          </g>
+        </svg>
+        <span class="btn-label">Fit</span>
+      </button>
+    </div>
+
+    <h2 class="section-title">Hot spots</h2>
     <div id="legend"></div>
 
-    <div class="section-title">Connections</div>
+    <h2 class="section-title">Connections</h2>
     <div id="edge-legend">
       <div class="edge-row"><span class="edge-swatch sim"></span><span>similar meaning</span></div>
       <div class="edge-row"><span class="edge-swatch rel"></span><span>typed relation</span></div>
@@ -40,11 +104,40 @@
       </div>
     </div>
 
-    <div id="details" class="hidden"></div>
-    <div class="hint">scroll to zoom · drag to pan · click a node to focus · click a cluster to filter · esc to clear</div>
-  </div>
+    <p class="hint">scroll to zoom · drag to pan · click a node to focus · click a cluster to filter · <kbd>/</kbd> to search · <kbd>esc</kbd> to clear</p>
+  </aside>
 
+  <div id="details" class="hidden"></div>
   <div id="tooltip" class="hidden"></div>
+
+  <!-- Cloneable icon / illustration templates (kept out of JS so app.js stays
+       textContent-only with untrusted data) -->
+  <template id="tpl-icon-x">
+    <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+      <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M6 6l12 12 M18 6L6 18" />
+      </g>
+    </svg>
+  </template>
+  <template id="tpl-empty-art">
+    <svg class="overlay-art" viewBox="0 0 120 84" width="120" height="84" aria-hidden="true">
+      <g fill="none" stroke="#2a3346" stroke-width="1.4">
+        <path d="M28 56 55 30 M58 32 84 46 M56 34 47 62 M86 48 96 24" />
+      </g>
+      <circle cx="26" cy="58" r="6" fill="#4c8bf5" opacity="0.85" />
+      <circle cx="57" cy="31" r="8.5" fill="#34d399" opacity="0.9" />
+      <circle cx="86" cy="47" r="5" fill="#e0c896" opacity="0.85" />
+      <circle cx="97" cy="22" r="3.5" fill="#c9d2e3" opacity="0.7" />
+      <circle cx="46" cy="64" r="3.5" fill="#8a93a6" opacity="0.6" />
+    </svg>
+  </template>
+  <template id="tpl-warn-art">
+    <svg class="overlay-art" viewBox="0 0 64 64" width="52" height="52" aria-hidden="true">
+      <path d="M32 8 58 52H6Z" fill="none" stroke="#fbbf24" stroke-width="3" stroke-linejoin="round" />
+      <path d="M32 24v14" stroke="#fbbf24" stroke-width="3.5" stroke-linecap="round" />
+      <circle cx="32" cy="45" r="2.2" fill="#fbbf24" />
+    </svg>
+  </template>
 
   <!-- graphology (Graph model) + forceatlas2 layout + Sigma (WebGL renderer),
        vendored locally: no CDN dependency, nothing leaves the server -->

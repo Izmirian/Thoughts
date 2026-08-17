@@ -72,6 +72,31 @@
     return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha.toFixed(3)})`;
   }
 
+  // --- Live-arrival helpers ---------------------------------------------------
+
+  /** Centroid of known neighbour positions — where a brand-new node should be
+      born so it visibly grows out of its cluster. Pure: caller adds jitter.
+      Returns null when there are no usable points (caller falls back to random). */
+  function spawnPosition(points) {
+    if (!Array.isArray(points) || points.length === 0) return null;
+    let sx = 0, sy = 0, n = 0;
+    for (const p of points) {
+      if (!p || typeof p.x !== 'number' || typeof p.y !== 'number') continue;
+      sx += p.x; sy += p.y; n++;
+    }
+    return n ? { x: sx / n, y: sy / n } : null;
+  }
+
+  /** Entrance tween for newly arrived nodes: eased scale 0.2 → 1 with a slight
+      overshoot (easeOutBack). t is progress 0..1; t >= 1 returns exactly 1. */
+  function entranceScale(t) {
+    const x = clamp01(t);
+    if (x >= 1) return 1;
+    const c1 = 1.70158, c3 = c1 + 1;
+    const eased = 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+    return 0.2 + 0.8 * eased;
+  }
+
   /** "2h ago" / "3d ago" for status rows. Returns '—' for falsy input. */
   function relativeTime(iso) {
     if (!iso) return '—';
@@ -86,6 +111,6 @@
 
   globalThis.ThoughtsViz = {
     clamp01, hslToHex, clusterColor, nodeSize, mixHex, heatColor,
-    edgeWidth, edgeColor, relativeTime, STRONG_W,
+    edgeWidth, edgeColor, relativeTime, spawnPosition, entranceScale, STRONG_W,
   };
 })();

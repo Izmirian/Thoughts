@@ -43,8 +43,11 @@ WhatsApp ─► reminder-bot ─(POST /api/ingest, shared secret)─► Thoughts
 | `src/transcribe.js` | Voice → text (Whisper) |
 | `src/db.js` | Postgres(pgvector)/SQLite layer, ideas/edges/clusters CRUD |
 | `src/cron.js` | Schedules: clustering (6h), labeling (daily), edge cleanup (daily) |
-| `public/` | Sigma.js viewer (no build step; libs via CDN) |
+| `public/` | Sigma.js viewer (no build step; libs vendored in `public/vendor/`) — **live**: polls `/api/graph` every 35s, diffs, preserves layout, animates arrivals |
 | `scripts/seed.js` | Insert themed sample ideas to verify the pipeline offline |
+| `scripts/demo.js` / `demo-add.js` | Zero-key local fixture (synthetic embeddings, SQLite); `demo-add` drops extra ideas in while the server runs to exercise the live-update path |
+| `scripts/seed-remote.js` | Seed a deployed instance with ~50 themed test ideas via `/api/ingest` (needs `THOUGHTS_URL` + `THOUGHTS_INGEST_SECRET` + `VIEWER_TOKEN`); all under chat `seed-user` — bulk-delete with `POST /api/forget?chat=seed-user` then `/api/recompute` |
+| `PRODUCT.md` / `DESIGN.md` | Product truth + recorded design system (Impeccable); run `npx impeccable detect public/` after viewer changes — keep it clean |
 
 ## How connections work
 
