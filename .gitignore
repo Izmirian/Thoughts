@@ -3,3 +3,10 @@ data/
 .env
 logs/
 .DS_Store
+
+# Impeccable (machine-local hook config + session ephemera)
+.claude/settings.local.json
+.impeccable/*.local.json
+.impeccable/live/
+.impeccable/mocks/
+.impeccable/review/
