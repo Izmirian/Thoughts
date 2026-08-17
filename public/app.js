@@ -284,7 +284,7 @@ function mountRenderer() {
   renderer = new Sigma(graph, document.getElementById('graph'), {
     minCameraRatio: 0.05,
     maxCameraRatio: 12,
-    stagePadding: 64, // breathing room so the composition sits centered, clear of chrome
+    stagePadding: 84, // breathing room: clear of the 68px-deep topbar, composition centered
     zIndex: true,
     labelRenderedSizeThreshold: 9,
     labelColor: { color: '#dbe2ee' },
