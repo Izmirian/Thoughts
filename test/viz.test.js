@@ -61,6 +61,28 @@ test('mixHex / heatColor / clusterColor return 7-char hex', () => {
   }
 });
 
+test('spawnPosition returns the neighbour centroid, null when unusable', () => {
+  assert.deepEqual(V.spawnPosition([{ x: 0, y: 0 }, { x: 10, y: 20 }]), { x: 5, y: 10 });
+  assert.deepEqual(V.spawnPosition([{ x: -4, y: 6 }]), { x: -4, y: 6 });
+  // junk entries are skipped, not averaged as NaN
+  assert.deepEqual(V.spawnPosition([{ x: 2, y: 2 }, null, { x: 'a', y: 1 }]), { x: 2, y: 2 });
+  assert.equal(V.spawnPosition([]), null);
+  assert.equal(V.spawnPosition(null), null);
+  assert.equal(V.spawnPosition([null, {}]), null);
+});
+
+test('entranceScale eases 0.2 → 1 with a bounded overshoot', () => {
+  assert.ok(Math.abs(V.entranceScale(0) - 0.2) < 1e-9, 'starts small');
+  assert.equal(V.entranceScale(1), 1, 'lands exactly at 1');
+  assert.equal(V.entranceScale(1.7), 1, 'clamped past the end');
+  assert.ok(Math.abs(V.entranceScale(-0.5) - 0.2) < 1e-9, 'clamped before the start');
+  let peak = 0;
+  for (let t = 0; t <= 1; t += 0.01) peak = Math.max(peak, V.entranceScale(t));
+  assert.ok(peak > 1 && peak < 1.15, `slight overshoot only, got ${peak}`);
+  // grows through the first half (the visible "pop-in")
+  assert.ok(V.entranceScale(0.25) < V.entranceScale(0.5));
+});
+
 test('relativeTime formats ages and tolerates junk', () => {
   assert.equal(V.relativeTime(null), '—');
   assert.equal(V.relativeTime('not-a-date'), '—');
